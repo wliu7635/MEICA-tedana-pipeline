@@ -20,8 +20,6 @@ tedana: ME‑ICA workflow tool; CLI options, workflow stages, and BIDS‑derivat
 
 nilearn: compute_epi_mask is used for EPI masking; if you do not pass --mask, tedana derives a mask from the first echo internally. 
 
-(All subsequent sections—masking, echo sanity check, running tedana, tSNR, volume comparison, optional surfaces—remain unchanged.)
-
 
 1. (Optional) Explicit EPI mask
 If --mask is not provided, tedana derives a mask from the first echo using Nilearn’s compute_epi_mask. Provide an explicit mask for reproducibility if you prefer.

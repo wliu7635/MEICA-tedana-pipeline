@@ -1,0 +1,6 @@
+tedana
+nibabel
+nilearn
+numpy
+scipy
+matplotlib

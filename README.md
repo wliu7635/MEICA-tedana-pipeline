@@ -31,7 +31,7 @@ If --mask is not provided, tedana derives a mask from the first echo using Nilea
 
         import os
         import nibabel as nib
-        from nilearn.masking import compute_epi_mask  # see official API  [3](https://blog.csdn.net/weixin_45090728/article/details/114285892)
+        from nilearn.masking import compute_epi_mask  # see official API  
         
         # ① set your Echo‑1 NIfTI path
         epi_path = r"D:\MEICA\raw\sub-01\sub-01_task-rest_echo-1_bold.nii.gz"

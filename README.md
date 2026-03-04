@@ -47,6 +47,7 @@ If --mask is not provided, tedana derives a mask from the first echo using Nilea
 
 
 2. Sanity check: dimensions & length across echoes
+   
         scripts\check_me.py
     Replace: ③
 

@@ -65,28 +65,79 @@ If --mask is not provided, tedana derives a mask from the first echo using Nilea
 
 3. Run the full ME‑ICA workflow with tedana (T2/S0, OC, ICA, classification, denoising)
    
-   Command‑line options (from the official docs & API)
+   3.0 Three workflows
+
+   * tedana (full ME‑ICA) runs the canonical TE‑Dependent ANAlysis workflow end‑to‑end: it fits T2*/S0, computes optimal combination (OC), performs PCA→ICA,           classifies components via TE‑dependence metrics (e.g., Kappa/Rho), and outputs a denoised time series along with OC and rich reports. This is the primary         pipeline most users mean by “ME‑ICA.”
+
+   * ica_reclassify is a post‑hoc tool to manually change component classifications after a tedana run and regenerate denoised outputs without redoing ICA; the        OC stays the same while the denoised output reflects your edits.
+
+   * t2smap estimates T2* and S0 (static or time‑series, per fitmode) and performs OC only—no ICA/denoising—useful if you need OC plus explicit T2*/S0 maps for        QC or modeling.
+     
+   OC vs t2smap ( “no‑ICA” vs “with‑ICA”)
    
-    -d: Provide echo‑wise 4D NIfTI files in ascending TE order
+       Give OC (desc-optcom_bold.nii.gz) as the “no‑ICA” baseline and ME‑ICA denoised (desc-denoised_bold.nii.gz) as the “with‑ICA” result from the
+       same tedana run. Add t2smap only if T2*/S0 maps are explicitly requested
    
-    -e: Echo times (BIDS recommends seconds; milliseconds are still accepted but deprecated).
-Example: 15.2 ms / 34.23 ms / 53.26 ms → 0.0152 0.03423 0.05326.
+   3.1 Full ME‑ICA with tedana
 
-    --out-dir: Output directory (created if missing).
+     What it does. Fits T2*/S0 → OC → PCA/ICA → TE‑dependence metrics → decision tree classification → denoising (with optional TEDORT/global‑signal control) and      generates detailed outputs & reports.
 
-   --prefix: Common filename prefix for all outputs.
+     CLI usage (from official docs):
 
-   --convention bids: Use BIDS Derivatives naming (e.g., desc-optcom_bold.nii.gz, desc-denoised_bold.nii.gz).
+         usage: tedana [-h] -d FILE [FILE ...] -e TE [TE ...] [--out-dir PATH]
+              [--mask FILE] [--prefix PREFIX] [--convention {orig,bids}]
+              [--dummy-scans DUMMY_SCANS]
+              [--masktype {dropout,decay,none} [{dropout,decay,none} ...]]
+              [--fittype {loglin,curvefit}] [--combmode {t2s}]
+              [--tedpca TEDPCA] [--tree TREE] [--external EXTERNAL_REGRESSORS]
+              [--ica-method {robustica,fastica}] [--seed INT]
+              [--n-robust-runs [5-500]] [--maxit INT] [--maxrestart INT]
+              [--tedort] [--gscontrol {mir,gsr} [{mir,gsr} ...]]
+              [--no-reports] [--png-cmap PNG_CMAP] [--verbose] [--lowmem]
+              [--n-threads N_THREADS] [--debug] [--t2smap FILE] [--mix FILE]
+              [--overwrite] [--n-independent-echos INT] [-v]
+   
+      Required arguments (doc text):
 
-   --fittype: T2* fitting — loglin (default) or curvefit.
+       -d — Multi‑echo dataset(s) in ascending TE order; may be a single z‑concatenated file or an echo‑wise list.
+       -e — Echo times (seconds per BIDS; milliseconds allowed but deprecated).
+          Example: 15.2 ms / 34.23 ms / 53.26 ms → 0.0152 0.03423 0.05326.
+   
+      Named arguments (original order & defaults):
 
-   --mask: Optional explicit mask (see Section 1). If omitted, tedana internally calls compute_epi_mask to derive an adaptive mask.
+        --out-dir (default .): Output directory.
+        --mask: Binary mask in data space; if omitted, Nilearn’s compute_epi_mask is used on echo‑1 (providing a mask is recommended).
+        --prefix (default ''): Output filename prefix.
+        --convention {orig,bids} (default bids): Naming convention (BIDS Derivatives).
+        --dummy-scans (default 0): Number of volumes to drop at start.
+        --masktype {dropout,decay,none} (default ['dropout']): Adaptive mask method(s).
+        --fittype {loglin,curvefit} (default loglin): Mono‑exponential fitting (linear on log‑data vs raw mono‑exponential).
+        --combmode {t2s} (default t2s): Echo combination scheme (Posse 1999).
+        --tedpca (default aic): PCA component selection (mdl/kic/aic/kundu/kundu-stabilize, or float 0–1 cumulative variance, or positive int).
+        --tree (default tedana_orig): Decision tree (tedana_orig, meica, minimal, or custom JSON).
+        --external: TSV of external regressors for the decision tree.
+        --ica-method {robustica,fastica} (default fastica)
+        --seed (default 42); --n-robust-runs (default 30, RobustICA only)
+        --maxit (default 500); --maxrestart (default 10)
+        --tedort (default False): Orthogonalize rejected vs accepted prior to denoising.
+        --gscontrol {mir,gsr}: Additional denoising for diffuse noise.
+        --no-reports (default False); --png-cmap (default coolwarm)
+        --verbose (default False); --lowmem (default False)
+        --n-threads (default 1)
+        --debug (default False)
+        --t2smap: Pre‑computed T2* map (seconds) to reuse.
+        --mix: External ICA mixing matrix; skips ME‑PCA/ME‑ICA if provided.
+        --overwrite/-f (default False)
+        --n-independent-echos: For EPTI goodness‑of‑fit.
+        -v/--version
 
-   --n-threads: Number of threads. [tedana.rea...thedocs.io]
+     Outputs you’ll typically surface: OC → desc-optcom_bold.nii.gz; ME‑ICA denoised → desc-denoised_bold.nii.gz; plus registry, masks, reports, etc.
+   
+       Mask caution (from docs). Avoid very conservative ROI masks before tedana; spatial patterns inform BOLD vs non‑BOLD classification. Apply ROIs after TE‑Dependent ANAlysis.
 
    Internals: PCA→ICA decomposition; TE‑dependence metrics (Kappa/Rho) + decision tree for BOLD vs. non‑BOLD classification; non‑BOLD time series are regressed out from OC to yield the denoised output.
 
-    Replace ④–⑧
+    3.1.1 Windows CMD template — Replace ④–⑧
     
        tedana ^
           -d ^
@@ -118,6 +169,105 @@ Example: 15.2 ms / 34.23 ms / 53.26 ms → 0.0152 0.03423 0.05326.
 
    The key→filename mapping for these BIDS outputs is tabulated in the “Outputs of tedana” documentation, which also explains classification products and the report structure
 
+   3.2 ica_reclassify (manual component reclassification)
+
+     What it does. Takes the registry from a prior tedana run, lets you accept/reject components by index or apply tags, then re‑saves the denoised outputs and logs all changes—no re‑ICA. Output types mirror tedana (OC unchanged).
+
+     CLI usage (from official docs):
+
+       usage: ica_reclassify [-h] [--manacc MANUAL_ACCEPT [MANUAL_ACCEPT ...]]
+                      [--manrej MANUAL_REJECT [MANUAL_REJECT ...]]
+                      [--tagacc TAG_ACCEPT [TAG_ACCEPT ...]]
+                      [--tagrej TAG_REJECT [TAG_REJECT ...]] [--config CONFIG]
+                      [--out-dir PATH] [--prefix PREFIX]
+                      [--convention {orig,bids}] [--dummy-scans DUMMY_SCANS]
+                      [--tedort] [--gscontrol {gsr,mir} [{gsr,mir} ...]]
+                      [--no-reports] [--png-cmap PNG_CMAP] [--verbose]
+                      [--debug] [--overwrite] [-v]
+                      registry
+   
+      Required argument: registry — file from the previous tedana run
+
+      Named arguments (original order & defaults):
+
+        --manacc (default []): Zero‑indexed component IDs to accept (CSV or delimited text: \t, \n, space, ,).
+        --manrej (default []): Zero‑indexed component IDs to reject.
+        --tagacc (default []): Tags to add to accepted components.
+        --tagrej (default []): Tags to add to rejected components.
+        --config (default auto): File‑naming configuration.
+        --out-dir (default .)
+        --prefix (default '')
+        --convention {orig,bids} (default bids)
+        --dummy-scans (default 0)
+        --tedort (default False)
+        --gscontrol {gsr,mir} (default none; gsr only valid if prior tedana used --gscontrol gsr)
+        --no-reports (default False), --png-cmap (default coolwarm), --verbose (default False), --debug (default False), --overwrite/-f (default False)
+        -v/--version
+
+    3.2.1 Windows CMD template — Replace ④–⑧
+        REM Manual reclassification (Windows CMD)
+        REM Replace ④–⑧ as indicated on the lines below
+        
+        ica_reclassify ^
+          "D:\MEICA\MEICA-derivatives\tedana\sub-01_task-rest\desc-tedana_registry.json" ^  rem ④ replace with YOUR registry.json (from prior tedana run)
+          --out-dir "D:\MEICA\MEICA-derivatives\tedana\sub-01_task-rest_reclass" ^         rem ⑤ replace with YOUR output directory for reclassification results
+          --manacc 0,2,5 ^                                                                  rem ⑥ replace with YOUR component indices to accept (comma-delimited, zero-indexed)
+          --manrej 10,11 ^                                                                  rem ⑦ replace with YOUR component indices to reject (comma-delimited, zero-indexed)
+          --prefix sub-01_task-rest_ ^                                                      rem ⑧ replace with YOUR filename prefix
+          --convention bids ^
+          --tedort ^
+          --verbose
+        REM Optional: --tagacc signal,strongBOLD    --tagrej motion,physio
+
+   3.3 t2smap (estimate T2*/S0 + OC; no ICA)
+   
+      What it does. Estimates voxelwise T2* and S0 (static or time‑series) and performs OC. It does not run PCA/ICA/denoising. Use this when you need OC plus explicit T2*/S0 maps for QC or modeling
+
+      CLI usage (from official docs):
+   
+         usage: t2smap [-h] -d FILE [FILE ...] -e TE [TE ...] [--out-dir PATH]
+              [--mask FILE] [--prefix PREFIX] [--convention {orig,bids}]
+              [--dummy-scans DUMMY_SCANS] [--exclude EXCLUDE]
+              [--masktype {dropout,decay,none} [{dropout,decay,none} ...]]
+              [--fittype {loglin,curvefit}] [--fitmode {all,ts}]
+              [--combmode {t2s,paid}] [--n-independent-echos INT]
+              [--n-threads N_THREADS] [--verbose] [--overwrite]
+
+      Required arguments (doc text): -d (z‑concat or echo‑wise list in same order as -e), -e (echo times in seconds; milliseconds accepted but deprecated).
+
+      Named arguments (original order & defaults):
+   
+        --out-dir (default .), --mask (explicit mask), --prefix (default ''), --convention {orig,bids} (default bids)
+        --dummy-scans (default 0): Excluded from both fitting and OC.
+        --exclude: Volume indices excluded from mask/T2/S0 fitting* but retained in OC (e.g., 0,5:10,15), 0‑based.
+        --masktype {dropout,decay,none} (default ['dropout'])
+        --fittype {loglin,curvefit} (default loglin)
+        --fitmode {all,ts} (default all): Fit across all volumes vs per‑timepoint.
+        --combmode {t2s,paid} (default t2s)
+        --n-independent-echos (EPTI; default use number of echoes), --n-threads (default 1), --verbose (default False), --overwrite/-f (default False)
+
+       Typical outputs: OC → desc-optcom_bold.nii.gz; T2* → T2starmap.nii.gz; S0 → S0map.nii.gz; plus metadata/report elements as applicable
+
+     3.3.1 Windows CMD template — Replace ④–⑧
+     
+        REM T2*/S0 + OC only (Windows CMD)
+        REM Replace ④–⑧ as indicated on the lines below
+        
+        t2smap ^
+          -d ^
+          "D:\MEICA\raw\sub-01\sub-01_task-rest_echo-1_bold.nii.gz" ^  rem ④ replace with YOUR echo‑1 4D NIfTI (first echo; TE-ascending)
+          "D:\MEICA\raw\sub-01\sub-01_task-rest_echo-2_bold.nii.gz" ^  rem ⑤ replace with YOUR echo‑2 4D NIfTI
+          "D:\MEICA\raw\sub-01\sub-01_task-rest_echo-3_bold.nii.gz" ^  rem ⑥ replace with YOUR echo‑3 4D NIfTI
+          -e 0.0152 0.03423 0.05326 ^                                  rem ⑦ replace with YOUR echo times in seconds (BIDS‑recommended)
+          --out-dir "D:\MEICA\MEICA-derivatives\t2smap\sub-01_task-rest" ^  rem ⑧ replace with YOUR output directory
+          --prefix sub-01_task-rest_ ^
+          --convention bids ^
+          --fittype loglin ^
+          --fitmode all ^
+          --n-threads 8 ^
+          --overwrite
+        REM Optional: --exclude 0:5   (exclude first 5 volumes from T2*/S0 fit but keep them in OC)
+   
 4. Compute tSNR for TE2, OC, and ME‑ICA
    
     Definition: mean/std per voxel over time; AFNI’s 3dTstat -tsnr computes |mean|/stdev (no detrend), equivalent for comparison purposes.

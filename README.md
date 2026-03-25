@@ -5,7 +5,8 @@ This repository implements a complete ME‑ICA workflow with tedana: voxelwise T
 All references to tool behavior and parameters point to the official documentation: tedana usage/outputs, nilearn.compute_epi_mask, AFNI’s definition of tSNR, and Workbench palette names/options (including videen_style)
 
 
-0. Environment & Setup (Windows CMD workflow, Docker-based)
+# 0. Environment & Setup (Windows CMD workflow, Docker-based)
+
 Run Python and tedana directly from Windows CMD. Simply install dependencies via pip (run CMD as Administrator if needed). fMRIPrep is recommended to be executed using container technologies (Docker/Singularity). The command-line interface follows the BIDS‑Apps pattern:
 
        fmriprep <input_bids_path> <derivatives_path> <analysis_level> [options].
@@ -48,7 +49,7 @@ Containerized fMRIPrep commonly requires a FreeSurfer license file provided via 
 tedana: ME‑ICA workflow tool; CLI options, workflow stages, and BIDS‑derivative outputs are described in the official docs. https://tedana.readthedocs.io/en/24.0.0/generated/tedana.workflows.tedana_workflow.html
 
 
-1. fMRIPrep preprocessing (multi-echo preparation for downstream ME-ICA)
+# 1. fMRIPrep preprocessing (multi-echo preparation for downstream ME-ICA)
 
 The --me-output-echos option outputs echo-wise, minimally processed BOLD series suitable for multi‑echo denoising workflows (e.g., tedana), after key corrections have been applied in a consistent way.
 
@@ -89,7 +90,7 @@ Notes (operational):
 
       fMRIPrep produces a BIDS Derivatives dataset including subject-level HTML reports and confounds files.
 
-2. Sanity check:post-fMRIPrep echo-wise outputs
+# 2. Sanity check:post-fMRIPrep echo-wise outputs
 
    These checks validate that the echo-wise, minimally processed outputs are aligned and have consistent spatial/temporal dimensions—properties required by most multi‑echo denoising workflows.
    
@@ -123,19 +124,20 @@ Notes (operational):
             
             print("Shapes:", shapes)
    
-# Ensure spatial dims match and number of timepoints (nTR) match
-assert len({s[:3] for s in shapes}) == 1 and len({s[3] for s in shapes}) == 1, \
-    "Mismatch in spatial size or nTR across echoes"
+   Ensure spatial dims match and number of timepoints (nTR) match 
 
-print("Echo-wise preprocessed series are spatially aligned and have identical length."
-``
+              assert len({s[:3] for s in shapes}) == 1 and len({s[3] for s in shapes}) == 1, \
+                  "Mismatch in spatial size or nTR across echoes"
+              
+              print("Echo-wise preprocessed series are spatially aligned and have identical length."
+              ``
 
 
    Run from Windows CMD:
 
-      python scripts\check_me_fmriprep.py
+             python scripts\check_me_fmriprep.py
 
-3. Run the full ME‑ICA workflow with tedana (T2/S0, OC, ICA, classification, denoising)
+# 3. Run the full ME‑ICA workflow with tedana (T2/S0, OC, ICA, classification, denoising)
    
    3.0 Three workflows
 
@@ -340,7 +342,7 @@ print("Echo-wise preprocessed series are spatially aligned and have identical le
           --overwrite
         REM Optional: --exclude 0:5   (exclude first 5 volumes from T2*/S0 fit but keep them in OC)
    
-4. Compute tSNR for TE2, OC, and ME‑ICA
+# 4. Compute tSNR for TE2, OC, and ME‑ICA
    
     Definition: mean/std per voxel over time; AFNI’s 3dTstat -tsnr computes |mean|/stdev (no detrend), equivalent for comparison purposes.
 
@@ -379,7 +381,7 @@ print("Echo-wise preprocessed series are spatially aligned and have identical le
                 os.path.join(qc_dir,  "tsnr_MEICA_denoised.nii.gz"))
 
    
-5.  Main path: Volume‑space comparison only (no surfaces) with fixed range ([-100, 100])
+# 5.  Main path: Volume‑space comparison only (no surfaces) with fixed range ([-100, 100])
    
     Load the three volume tSNR maps side‑by‑side or overlaid
 
@@ -390,7 +392,7 @@ print("Echo-wise preprocessed series are spatially aligned and have identical le
     Open them in Workbench to compare TE2 vs OC vs ME‑ICA; no surface mapping is required. in Workbench palette options，choose videen_style and use fix range [-100, 100].
 
 
-7. Key tedana stages & outputs (Sources)
+# 6. Key tedana stages & outputs (Sources)
 
     T2*/S0 fitting: monoexponential S(TE)=S0e−TE/T2\*S(TE)=S_0 e^{-TE/T2^\*}S(TE)=S0​e−TE/T2\*, --fittype loglin/curvefit.
    

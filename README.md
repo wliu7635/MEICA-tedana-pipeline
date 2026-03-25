@@ -5,63 +5,135 @@ This repository implements a complete ME‑ICA workflow with tedana: voxelwise T
 All references to tool behavior and parameters point to the official documentation: tedana usage/outputs, nilearn.compute_epi_mask, AFNI’s definition of tSNR, and Workbench palette names/options (including videen_style)
 
 
-0. Environment & Setup (Windows CMD workflow, no conda)
-Run Python and tedana directly from Windows CMD. Simply install dependencies via pip (run CMD as Administrator if needed):
+0. Environment & Setup (Windows CMD workflow, Docker-based)
+Run Python and tedana directly from Windows CMD. Simply install dependencies via pip (run CMD as Administrator if needed). fMRIPrep is recommended to be executed using container technologies (Docker/Singularity). The command-line interface follows the BIDS‑Apps pattern:
+
+       fmriprep <input_bids_path> <derivatives_path> <analysis_level> [options].
 
       :: (Optional) check Python version (3.10+ recommended)
    
        python --version
       
-      :: Install dependencies (no conda required)
+      :: 0.1 Install Docker Desktop (Windows)
    
-       pip install tedana nibabel nilearn numpy scipy matplotlib
+       Install Docker Desktop for Windows using the official installer and verify that the Docker CLI is available.
+
+       Docker Desktop (Windows install guide): https://docs.docker.com/desktop/setup/install/windows-install/
+
+   Verify from CMD:
+
+       docker --version
+
+      0.2 Verify Docker can run containers
+
+   NiPreps recommends a quick sanity check using the hello-world image.
+   
+       docker run --rm hello-world
+   
+      0.3 Pull the fMRIPrep Docker image
+
+      The official Docker image is nipreps/fmriprep
+   
+      docker pull nipreps/fmriprep:latest
+
+      0.4 FreeSurfer license (required unless recon-all is disabled)
+
+         Prepare:
+
+       license.txt (FreeSurfer license file)
+       A local folder to store it (example below: D:\MEICA\freesurfer\license.txt)
+
+Containerized fMRIPrep commonly requires a FreeSurfer license file provided via --fs-license-file.
 
 tedana: ME‑ICA workflow tool; CLI options, workflow stages, and BIDS‑derivative outputs are described in the official docs. https://tedana.readthedocs.io/en/24.0.0/generated/tedana.workflows.tedana_workflow.html
 
-nilearn: compute_epi_mask is used for EPI masking; if you do not pass --mask, tedana derives a mask from the first echo internally. 
 
+1. fMRIPrep preprocessing (multi-echo preparation for downstream ME-ICA)
 
-1. (Optional) Explicit EPI mask
-If --mask is not provided, tedana derives a mask from the first echo using Nilearn’s compute_epi_mask. Provide an explicit mask for reproducibility if you prefer.
+The --me-output-echos option outputs echo-wise, minimally processed BOLD series suitable for multi‑echo denoising workflows (e.g., tedana), after key corrections have been applied in a consistent way.
+
+1.1 Run fMRIPrep (Docker)
+
+Windows CMD template
 
         scripts\make_mask.py
-   Replace: ① ②
+   Replace: ① - ⑨
 
-        import os
-        import nibabel as nib
-        from nilearn.masking import compute_epi_mask  # see official API  
-        
-        # ① set your Echo‑1 NIfTI path
-        epi_path = r"D:\MEICA\raw\sub-01\sub-01_task-rest_echo-1_bold.nii.gz"
-        
-        # ② set your desired output path for the mask (directories will be created)
-        out_path = r"D:\MEICA\MEICA-derivatives\masks\sub-01\sub-01_task-rest_mask.nii.gz"
-        
-        os.makedirs(os.path.dirname(out_path), exist_ok=True)
-        img = nib.load(epi_path)
-        mask_img = compute_epi_mask(img)
-        mask_img.to_filename(out_path)
-        print("Saved mask:", out_path)
+            REM ==========================================
+            REM Step 1: fMRIPrep (Docker) - multi-echo run
+            REM ==========================================
+            
+            REM Replace ①–④ with your own paths:
+            REM ① BIDS root (input):        D:/MEICA/bids
+            REM ② Derivatives (output):     D:/MEICA/derivatives
+            REM ③ Work directory (temp):    D:/MEICA/work
+            REM ④ FreeSurfer license dir:   D:/MEICA/freesurfer   (contains license.txt)
+            
+            docker run --rm -it ^
+              -v "D:/MEICA/bids:/data:ro" ^                  rem ① input BIDS dataset (read-only)
+              -v "D:/MEICA/derivatives:/out" ^               rem ② output derivatives directory
+              -v "D:/MEICA/work:/work" ^                     rem ③ working directory
+              -v "D:/MEICA/freesurfer:/opt/freesurfer" ^     rem ④ FreeSurfer license folder
+              nipreps/fmriprep:latest ^
+              /data /out participant ^
+              --participant-label 01 ^                       rem ⑤ subject label (e.g., 01)
+              --fs-license-file /opt/freesurfer/license.txt ^ rem ⑥ FreeSurfer license
+              --work-dir /work ^                             rem ⑦ work dir inside container
+              --output-spaces T1w MNI152NLin2009cAsym ^       rem ⑧ typical output spaces
+              --me-output-echos ^                            rem ⑨ write echo-wise minimally processed series
+              --nprocs 8 --omp-nthreads 8 --mem 16000       
 
+Notes (operational):
 
-2. Sanity check: dimensions & length across echoes
+      The BIDS‑Apps command-line structure is the same whether containerized or not; the container run “preamble” is prepended to the fMRIPrep arguments.
+
+      fMRIPrep produces a BIDS Derivatives dataset including subject-level HTML reports and confounds files.
+
+2. Sanity check:post-fMRIPrep echo-wise outputs
+
+   These checks validate that the echo-wise, minimally processed outputs are aligned and have consistent spatial/temporal dimensions—properties required by most multi‑echo denoising workflows.
    
-        scripts\check_me.py
+      2.1 Locate the echo-wise outputs generated by --me-output-echos
+
+      fMRIPrep supports --me-output-echos to make the individual echoes available after minimal preprocessing, enabling downstream workflows to operate on echo-wise data.
+
+      Depending on version and execution settings, echo-wise files may appear in the working directory and/or in derivatives (fMRIPrep documents that some intermediate/resampling products may be retained in the working directory)
+
+      A typical naming pattern in derivatives (example for one run) is:
+
+            sub-01_task-rest_echo-1_desc-preproc_bold.nii.gz
+            sub-01_task-rest_echo-2_desc-preproc_bold.nii.gz
+            sub-01_task-rest_echo-3_desc-preproc_bold.nii.gz
+   
+      2.2 Sanity check script: dimensions & length across echoes (echo-wise preproc)
+   
+        scripts\check_me_fmriprep.py
     Replace: ③
 
-        import nibabel as nib
+            import nibabel as nib
+            
+            paths = [
+                r"D:\MEICA\derivatives\fmriprep\sub-01\func\sub-01_task-rest_echo-1_desc-preproc_bold.nii.gz",  # ③ echo-1 preproc
+                r"D:\MEICA\derivatives\fmriprep\sub-01\func\sub-01_task-rest_echo-2_desc-preproc_bold.nii.gz",  # ③ echo-2 preproc
+                r"D:\MEICA\derivatives\fmriprep\sub-01\func\sub-01_task-rest_echo-3_desc-preproc_bold.nii.gz",  # ③ echo-3 preproc
+            ]
+            
+            imgs   = [nib.load(p) for p in paths]
+            shapes = [img.shape for img in imgs]
+            
+            print("Shapes:", shapes)
+   
+# Ensure spatial dims match and number of timepoints (nTR) match
+assert len({s[:3] for s in shapes}) == 1 and len({s[3] for s in shapes}) == 1, \
+    "Mismatch in spatial size or nTR across echoes"
 
-        paths = [
-            r"D:\MEICA\raw\sub-01\sub-01_task-rest_echo-1_bold.nii.gz",  # ③ your echo‑1
-            r"D:\MEICA\raw\sub-01\sub-01_task-rest_echo-2_bold.nii.gz",  # ③ your echo‑2
-            r"D:\MEICA\raw\sub-01\sub-01_task-rest_echo-3_bold.nii.gz",  # ③ your echo‑3
-        ]
-        imgs   = [nib.load(p) for p in paths]
-        shapes = [img.shape for img in imgs]
-        print("Shapes:", shapes)
-        assert len({s[:3] for s in shapes}) == 1 and len({s[3] for s in shapes}) == 1, "Mismatch in size or nTR"
-        print("Looks aligned & same length.")
+print("Echo-wise preprocessed series are spatially aligned and have identical length."
+``
 
+
+   Run from Windows CMD:
+
+      python scripts\check_me_fmriprep.py
 
 3. Run the full ME‑ICA workflow with tedana (T2/S0, OC, ICA, classification, denoising)
    
@@ -318,7 +390,7 @@ If --mask is not provided, tedana derives a mask from the first echo using Nilea
     Open them in Workbench to compare TE2 vs OC vs ME‑ICA; no surface mapping is required. in Workbench palette options，choose videen_style and use fix range [-100, 100].
 
 
-6. Key tedana stages & outputs (Sources)
+7. Key tedana stages & outputs (Sources)
 
     T2*/S0 fitting: monoexponential S(TE)=S0e−TE/T2\*S(TE)=S_0 e^{-TE/T2^\*}S(TE)=S0​e−TE/T2\*, --fittype loglin/curvefit.
    

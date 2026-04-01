@@ -11,11 +11,11 @@ Run Python and tedana directly from Windows CMD. Simply install dependencies via
 
        fmriprep <input_bids_path> <derivatives_path> <analysis_level> [options].
 
-      :: (Optional) check Python version (3.10+ recommended)
+:: (Optional) check Python version (3.10+ recommended)
    
        python --version
       
-      :: 0.1 Install Docker Desktop (Windows)
+:: 0.1 Install Docker Desktop (Windows)
    
        Install Docker Desktop for Windows using the official installer and verify that the Docker CLI is available.
 
@@ -25,19 +25,19 @@ Run Python and tedana directly from Windows CMD. Simply install dependencies via
 
        docker --version
 
-      0.2 Verify Docker can run containers
+:: 0.2 Verify Docker can run containers
 
    NiPreps recommends a quick sanity check using the hello-world image.
    
        docker run --rm hello-world
    
-      0.3 Pull the fMRIPrep Docker image
+:: 0.3 Pull the fMRIPrep Docker image
 
       The official Docker image is nipreps/fmriprep
    
       docker pull nipreps/fmriprep:latest
 
-      0.4 FreeSurfer license (required unless recon-all is disabled)
+:: 0.4 FreeSurfer license (required unless recon-all is disabled)
 
          Prepare:
 
